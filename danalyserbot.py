@@ -63,7 +63,7 @@ def parse_player_info(response: Dict) -> str:
     estimated_mmr = response.get('mmr_estimate').get('estimate')
     if estimated_mmr is None:
         raise KeyError('В ответе нет estimated_mmr!')
-    return (f'Привет, {username}! Твой оценочный ммр: {estimated_mmr}.')
+    return (f'Игрок {username}: оценочный MMR - {estimated_mmr}.')
 
 def check_tokens() -> bool:
     """Проверяет доступность обязательных переменных окружения."""
