@@ -17,7 +17,8 @@ TELEGRAM_TOKEN: Optional[str] = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID: Optional[str] = os.getenv('TELEGRAM_CHAT_ID')
 
 RETRY_TIME: int = 600
-ENDPOINT: str = 'https://api.opendota.com/api/matches/'
+MATCH_ENDPOINT: str = 'https://api.opendota.com/api/matches/'
+PLAYER_ENDPOINT: str = 'https://api.opendota.com/api/players/'
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -37,27 +38,44 @@ def send_message(bot: telegram.bot.Bot, message: Dict) -> None:
     #    logger.info('Сообщение успешно отправлено.')
     #except telegram.error.TelegramError as error:
     #    logger.error(f'Не удалась отправка сообщения. Ошибка: "{error}".')
-    print(message)
+    #print(message)
 
 
-def get_api_answer(match_id: int) -> Dict:
-    """Принимает match_id, делает запрос к API, возвращает словарь."""
-    request_params: Dict = {
-        'url': ENDPOINT + str(match_id),
-    }
-    response = requests.get(**request_params)
-
-    if response.status_code != HTTPStatus.OK:
-        raise Exception(f'Ответ со статусом "{response.status_code}"')
-
-    logger.debug('Бот сделал запрос к API и получил ответ со статусом '
-                 f'"{response.status_code}".')
+def get_match_info(match_id: int) -> Dict:
+    """Принимает match_id, возвращает объект матча."""
+    response = requests.get(url=MATCH_ENDPOINT + str(match_id))
+    check_response(response)
     return response.json()
 
+
+def get_player_info(account_id: int) -> Dict:
+    """Принимает account_id, возвращает объект профиля."""
+    response = requests.get(url=PLAYER_ENDPOINT + str(account_id))
+    check_response(response)
+    return response.json()
+
+
+def parse_player_info(response: Dict) -> str:
+    """Принимает объект юзера, парсит, возвращает сообщение о профиле."""
+    username = response.get('profile').get('personaname')
+    if username is None:
+        raise KeyError('В объекте профиля нет personaname!')
+    estimated_mmr = response.get('mmr_estimate').get('estimate')
+    if estimated_mmr is None:
+        raise KeyError('В ответе нет estimated_mmr!')
+    return (f'Привет, {username}! Твой оценочный ммр: {estimated_mmr}.')
 
 def check_tokens() -> bool:
     """Проверяет доступность обязательных переменных окружения."""
     return all([TELEGRAM_TOKEN, TELEGRAM_CHAT_ID])
+
+
+def check_response(response) -> None:
+    """Проверяет статус ответа, если != 200, поднимает исключение."""
+    if response.status_code != HTTPStatus.OK:
+        raise ValueError(f'Ответ со статусом "{response.status_code}".')
+    logger.debug('Бот сделал запрос к API и получил ответ со статусом '
+                 f'"{response.status_code}".')    
 
 
 def get_check_tokens_failure_msg() -> str:
@@ -84,8 +102,9 @@ def main() -> None:
     logger.info('Переменные среды найдены. Инициализация...')
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    match_info = get_api_answer(6860559663)
-    send_message(bot, match_info)
+    player_info = get_player_info(125253635)
+    print(parse_player_info(player_info))
+
 
 if __name__ == '__main__':
     main()
