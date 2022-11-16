@@ -9,6 +9,8 @@ from typing import Dict, Optional, Union
 import requests
 import telegram
 from dotenv import load_dotenv
+from telegram.ext import Filters, CommandHandler, MessageHandler, Updater
+from telegram import ReplyKeyboardMarkup
 
 load_dotenv()
 
@@ -92,7 +94,6 @@ def get_win_loss_count(accout_id: int) -> Dict[str, Dict[str, int]]:
         response = requests.get(**request_params)
         if check_response(response):
             winrates_periods[period] = response.json()
-            print(response.json())
 
     return winrates_periods
 
@@ -142,6 +143,46 @@ def get_check_tokens_failure_msg() -> str:
             '\nПрограмма принудительно остановлена.')
 
 
+def wake_up(update, context) -> None:
+    chat = update.effective_chat
+    name = update.message.chat.first_name
+    
+    context.bot.send_message(
+        chat_id=chat.id,
+        text=(f'Привет, {name}! Введи свой Steam32 account ID, чтобы увидеть '
+              'статистику по оценочному MMR и винрейту.')
+    )
+
+
+def mmr_winrate_info(update, context) -> None:
+    try:
+        full_name = (f'{update.message.chat.first_name} '
+                     f'{update.message.chat.last_name}')
+        account_id = int(update.message.text)
+        logger.info(f'Нам пишет {full_name}!')
+        chat = update.effective_chat
+        player_info = get_player_info(account_id)
+        message = parse_player_info(player_info)
+        context.bot.send_message(
+            chat_id=chat.id,
+            text=message
+        )
+        logger.info(message)
+
+        wl_count = get_win_loss_count(account_id)
+        wl_message = parse_win_loss_count(wl_count)
+        context.bot.send_message(
+            chat_id=chat.id,
+            text=wl_message
+        )
+        logger.info(wl_message)
+    except Exception as error:
+        context.bot.send_message(
+            chat_id=chat.id,
+            text=f'Возникла проблема: {error}.'
+        )
+
+
 def main() -> None:
     """Основная логика работы бота."""
     if not check_tokens():
@@ -149,16 +190,19 @@ def main() -> None:
         sys.exit()
     logger.info('Переменные среды найдены. Инициализация...')
 
-    bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    account_id = 125253635
+    updater = Updater(token=TELEGRAM_TOKEN)
+    updater.dispatcher.add_handler(CommandHandler('start', wake_up))
+    updater.dispatcher.add_handler(
+        MessageHandler(
+            Filters.text,
+            mmr_winrate_info
+        )
+    )
 
-    player_info = get_player_info(account_id)
-    message = parse_player_info(player_info)
-    send_message(bot, message)
+    updater.start_polling()
+    updater.idle()
 
-    wl_count = get_win_loss_count(account_id)
-    wl_message = parse_win_loss_count(wl_count)
-    send_message(bot, wl_message)
+
 
 
 if __name__ == '__main__':
