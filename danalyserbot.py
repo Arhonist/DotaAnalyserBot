@@ -173,6 +173,7 @@ def mmr_winrate_info(update, context) -> None:
                 chat_id=chat.id,
                 text=message_object.get('text')
             )
+
         logger.info(message_object.get('text'))
 
         wl_count = get_win_loss_count(account_id)
