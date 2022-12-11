@@ -37,17 +37,6 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 
 
-def send_message(bot: telegram.bot.Bot, message: str) -> None:
-    """Получает бота и сообщение на вход. Отправляет сообщение пользователю."""
-    try:
-        logger.info('Бот пытается отправить сообщение.')
-        bot.send_message(TELEGRAM_CHAT_ID, message)
-        logger.info('Сообщение успешно отправлено.')
-    except telegram.error.TelegramError as error:
-        logger.error(f'Не удалась отправка сообщения. Ошибка: "{error}".')
-    print(message)
-
-
 def get_match_info(match_id: int) -> Dict:
     """Принимает match_id, возвращает объект матча."""
     response = requests.get(url=MATCH_ENDPOINT + str(match_id))
@@ -62,8 +51,10 @@ def get_player_info(account_id: int) -> Dict:
     return response.json()
 
 
-def parse_player_info(response: Dict) -> str:
-    """Принимает объект юзера, парсит, возвращает сообщение о профиле."""
+def parse_player_info(response: Dict) -> Dict:
+    """
+    Принимает объект юзера, возвращает словарь с сообщением и URL'ом аватара.
+    """
     if response.get('profile') is None:
         raise KeyError('Отсутствует профиль с данным ID!')
 
@@ -79,7 +70,10 @@ def parse_player_info(response: Dict) -> str:
     if estimate is None:
         raise KeyError('В профиле нет estimate.')
 
-    return (f'Игрок {username}: оценочный MMR - {estimate}.')
+    return {
+        'text': f'Игрок {username}: оценочный MMR - {estimate}.',
+        'avatar_url': response.get('profile').get('avatarfull')
+    }
 
 
 def get_win_loss_count(accout_id: int) -> Dict[str, Dict[str, int]]:
@@ -160,14 +154,26 @@ def mmr_winrate_info(update, context) -> None:
                      f'{update.message.chat.last_name}')
         account_id = int(update.message.text)
         logger.info(f'Нам пишет {full_name}!')
+
         chat = update.effective_chat
         player_info = get_player_info(account_id)
-        message = parse_player_info(player_info)
-        context.bot.send_message(
-            chat_id=chat.id,
-            text=message
-        )
-        logger.info(message)
+        message_object = parse_player_info(player_info)
+
+        avatar_url = message_object.get('avatar_url')
+
+        if avatar_url:
+            context.bot.send_photo(
+                chat_id=chat.id,
+                photo=avatar_url,
+                caption=message_object.get('text')
+            )
+
+        else:
+            context.bot.send_message(
+                chat_id=chat.id,
+                text=message_object.get('text')
+            )
+        logger.info(message_object.get('text'))
 
         wl_count = get_win_loss_count(account_id)
         wl_message = parse_win_loss_count(wl_count)
@@ -176,11 +182,13 @@ def mmr_winrate_info(update, context) -> None:
             text=wl_message
         )
         logger.info(wl_message)
+
     except Exception as error:
         context.bot.send_message(
             chat_id=chat.id,
             text=f'Возникла проблема: {error}.'
         )
+        logger.info(error)
 
 
 def main() -> None:
