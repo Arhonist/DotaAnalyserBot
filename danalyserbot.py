@@ -21,6 +21,8 @@ RETRY_TIME: int = 600
 MATCH_ENDPOINT: str = 'https://api.opendota.com/api/matches/'
 PLAYER_ENDPOINT: str = 'https://api.opendota.com/api/players/'
 PERIODS_DICT: Dict[str, int] = {
+    'последний день': 1,
+    'последние три дня': 3,
     'последнюю неделю': 7,
     'последний месяц': 28,
     'последние полгода': 183,
@@ -52,9 +54,7 @@ def get_player_info(account_id: int) -> Dict:
 
 
 def parse_player_info(response: Dict) -> Dict:
-    """
-    Принимает объект юзера, возвращает словарь с сообщением и URL'ом аватара.
-    """
+    """Принимает объект юзера, возвращает словарь с текстом и URL аватара."""
     if response.get('profile') is None:
         raise KeyError('Отсутствует профиль с данным ID!')
 
@@ -99,12 +99,36 @@ def parse_win_loss_count(winrates_periods: Dict[str, Dict[str, int]]) -> str:
     for period, winloss_dict in winrates_periods.items():
         win: int = winloss_dict['win']
         lose: int = winloss_dict['lose']
-        winrate: str = f'{win / (win + lose):.2%}'
-        message += (f'За {period}:\nВинрейт: {winrate}.\n'
-                    f'Побед - {win}, поражений - {lose}.\n'
-                    f'Всего игр: {win + lose}.\n\n')
+        try:
+            winrate: str = f'{win / (win + lose):.2%}'
+            message += (f'За {period}:\nВинрейт: {winrate}.\n'
+                        f'Побед - {win}, поражений - {lose}.\n'
+                        f'Всего игр: {win + lose}.\n\n')
+        except ZeroDivisionError:
+            message += (f'За {period} сыграно 0 игр.\n\n')
 
     return message
+
+
+def get_last_game_object(account_id: int):
+    """Получает id игрока, возвращает объект последней игры."""
+    response = requests.get(
+        url=PLAYER_ENDPOINT + str(account_id) + '/recentMatches')
+    check_response(response)
+    match_object = get_match_info(response.json()[0]['match_id'])
+    print(match_object)
+
+
+def get_wordcloud_msg(account_id: int):
+    """Получает id игрока, возвращает сообщение вордклауда."""
+    response = requests.get(
+        url=PLAYER_ENDPOINT + str(account_id) + '/wordcloud')
+    check_response(response)
+
+    words_obj = response.json()['my_word_counts']
+    filt_obj = dict((filter(lambda item: len(item[0]) > 4, words_obj.items())))
+    obj_sort = sorted(filt_obj.items(),  key=lambda item: item[1], reverse=True)
+    print(obj_sort)
 
 
 def check_tokens() -> bool:
@@ -123,7 +147,7 @@ def check_response(response) -> bool:
 
 def get_check_tokens_failure_msg() -> str:
     """Возвращает сообщение об ошибке со списком ненайденных переменных."""
-    missing_vars = []
+    missing_vars: list = []
     if not TELEGRAM_TOKEN:
         missing_vars.append('TELEGRAM_TOKEN')
     if not TELEGRAM_CHAT_ID:
@@ -138,9 +162,10 @@ def get_check_tokens_failure_msg() -> str:
 
 
 def wake_up(update, context) -> None:
+    """"""
     chat = update.effective_chat
     name = update.message.chat.first_name
-    
+
     context.bot.send_message(
         chat_id=chat.id,
         text=(f'Привет, {name}! Введи свой Steam32 account ID, чтобы увидеть '
@@ -176,6 +201,8 @@ def mmr_winrate_info(update, context) -> None:
 
         logger.info(message_object.get('text'))
 
+        get_wordcloud_msg(account_id)
+
         wl_count = get_win_loss_count(account_id)
         wl_message = parse_win_loss_count(wl_count)
         context.bot.send_message(
@@ -210,8 +237,6 @@ def main() -> None:
 
     updater.start_polling()
     updater.idle()
-
-
 
 
 if __name__ == '__main__':
