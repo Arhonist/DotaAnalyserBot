@@ -136,6 +136,7 @@ def parse_wordcloud_object(player_words_raw: Dict) -> str:
     w_sorted = dict(sorted(
         w_filtered.items(), key=lambda item: item[1], reverse=True
     ))
+    logger.debug(list(w_sorted.items())[:10])
 
     return (', ').join(list(w_sorted.keys())[:WCLOUD_OUTPUT_WORDS_AMOUNT])
 
