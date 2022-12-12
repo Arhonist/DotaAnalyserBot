@@ -28,6 +28,8 @@ PERIODS_DICT: Dict[str, int] = {
     'последние полгода': 183,
     'всё время': 5110,
 }
+WCLOUD_MIN_WORD_LEN: str = 4
+WCLOUD_OUTPUT_WORDS_AMOUNT: str = 7
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -119,16 +121,37 @@ def get_last_game_object(account_id: int):
     print(match_object)
 
 
+def parse_wordcloud_object(player_words_raw: Dict) -> str:
+    """Получает объект вордклауда, возвращает список слов.
+
+    Из всех слов удаляет слова с длиной меньше
+    WCLOUD_MIN_WORD_LEN, сортирует по убыванию по частоте использования,
+    возвращает строку из WCLOUD_OUTPUT_WORDS_AMOUNT слов.
+    """
+    w_filtered = dict(filter(
+        lambda item: len(item[0]) > WCLOUD_MIN_WORD_LEN,
+        player_words_raw.items()
+    ))
+
+    w_sorted = dict(sorted(
+        w_filtered.items(), key=lambda item: item[1], reverse=True
+    ))
+
+    return (', ').join(list(w_sorted.keys())[:WCLOUD_OUTPUT_WORDS_AMOUNT])
+
+
 def get_wordcloud_msg(account_id: int):
-    """Получает id игрока, возвращает сообщение вордклауда."""
+    """Получает id игрока, возвращает сообщение из вордклауда."""
     response = requests.get(
         url=PLAYER_ENDPOINT + str(account_id) + '/wordcloud')
     check_response(response)
 
-    words_obj = response.json()['my_word_counts']
-    filt_obj = dict((filter(lambda item: len(item[0]) > 4, words_obj.items())))
-    obj_sort = sorted(filt_obj.items(),  key=lambda item: item[1], reverse=True)
-    print(obj_sort)
+    player_words_raw = response.json()['my_word_counts']
+    others_words_raw = response.json()['all_word_counts']
+    return (f'Чаще всего ты писал такие слова: '
+            f'{parse_wordcloud_object(player_words_raw)}.\n\n'
+            f'Чаще всего ты видел такие слова: '
+            f'{parse_wordcloud_object(others_words_raw)}.')
 
 
 def check_tokens() -> bool:
@@ -162,7 +185,7 @@ def get_check_tokens_failure_msg() -> str:
 
 
 def wake_up(update, context) -> None:
-    """"""
+    """При получении команды /start здоровается."""
     chat = update.effective_chat
     name = update.message.chat.first_name
 
@@ -174,6 +197,7 @@ def wake_up(update, context) -> None:
 
 
 def mmr_winrate_info(update, context) -> None:
+    """При получении сообщения пытается собрать инфу по присланному SteamID."""
     try:
         full_name = (f'{update.message.chat.first_name} '
                      f'{update.message.chat.last_name}')
@@ -201,7 +225,10 @@ def mmr_winrate_info(update, context) -> None:
 
         logger.info(message_object.get('text'))
 
-        get_wordcloud_msg(account_id)
+        context.bot.send_message(
+            chat_id=chat.id,
+            text=get_wordcloud_msg(account_id)
+        )
 
         wl_count = get_win_loss_count(account_id)
         wl_message = parse_win_loss_count(wl_count)
