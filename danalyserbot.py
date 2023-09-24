@@ -16,12 +16,13 @@ load_dotenv()
 
 TELEGRAM_TOKEN: Optional[str] = os.getenv('TELEGRAM_TOKEN')
 ADMIN_CHAT_ID: Optional[str] = os.getenv('TELEGRAM_CHAT_ID')
-
 TRACKED_IDS = {
+    'Cergx': 125253635,
+    'Соковня': 123110354,
     'Blood and Thunder': 49377146,
     'King Magenta': 420475855,
-    'Cergx': 125253635
 }
+
 
 RETRY_TIME: int = 600
 MATCH_ENDPOINT: str = 'https://api.opendota.com/api/matches/'
