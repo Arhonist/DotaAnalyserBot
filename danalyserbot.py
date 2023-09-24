@@ -15,7 +15,13 @@ from telegram import ReplyKeyboardMarkup
 load_dotenv()
 
 TELEGRAM_TOKEN: Optional[str] = os.getenv('TELEGRAM_TOKEN')
-TELEGRAM_CHAT_ID: Optional[str] = os.getenv('TELEGRAM_CHAT_ID')
+ADMIN_CHAT_ID: Optional[str] = os.getenv('TELEGRAM_CHAT_ID')
+
+TRACKED_IDS = {
+    'Blood and Thunder': 49377146,
+    'King Magenta': 420475855,
+    'Cergx': 125253635
+}
 
 RETRY_TIME: int = 600
 MATCH_ENDPOINT: str = 'https://api.opendota.com/api/matches/'
@@ -157,7 +163,7 @@ def get_wordcloud_msg(account_id: int):
 
 def check_tokens() -> bool:
     """Проверяет доступность обязательных переменных окружения."""
-    return all([TELEGRAM_TOKEN, TELEGRAM_CHAT_ID])
+    return all([TELEGRAM_TOKEN, ADMIN_CHAT_ID])
 
 
 def check_response(response) -> bool:
@@ -174,7 +180,7 @@ def get_check_tokens_failure_msg() -> str:
     missing_vars: list = []
     if not TELEGRAM_TOKEN:
         missing_vars.append('TELEGRAM_TOKEN')
-    if not TELEGRAM_CHAT_ID:
+    if not ADMIN_CHAT_ID:
         missing_vars.append('TELEGRAM_CHAT_ID')
 
     first_line = 'Не найдена обязательная переменная'
@@ -189,23 +195,33 @@ def wake_up(update, context) -> None:
     """При получении команды /start здоровается."""
     chat = update.effective_chat
     name = update.message.chat.first_name
+    button = ReplyKeyboardMarkup([list(TRACKED_IDS.keys())])
 
     context.bot.send_message(
         chat_id=chat.id,
         text=(f'Привет, {name}! Введи свой Steam32 account ID, чтобы увидеть '
-              'статистику по оценочному MMR и винрейту.')
+              'статистику по оценочному MMR и винрейту.'),
+        reply_markup=button
     )
 
 
 def mmr_winrate_info(update, context) -> None:
     """При получении сообщения пытается собрать инфу по присланному SteamID."""
+    chat = update.effective_chat
+
     try:
         full_name = (f'{update.message.chat.first_name} '
                      f'{update.message.chat.last_name}')
-        account_id = int(update.message.text)
-        logger.info(f'Нам пишет {full_name}!')
+        incoming_message = update.message.text
+        account_id = TRACKED_IDS[incoming_message] if incoming_message in TRACKED_IDS.keys() else int(incoming_message)
 
-        chat = update.effective_chat
+        message_to_send = f'Нам пишет {full_name}!'
+        logger.info(message_to_send)
+        context.bot.send_message(
+            chat_id=ADMIN_CHAT_ID,
+            text=message_to_send
+        )
+
         player_info = get_player_info(account_id)
         message_object = parse_player_info(player_info)
 
