@@ -32,7 +32,7 @@ PERIODS_DICT: Dict[str, int] = {
     'последнюю неделю': 7,
     'последний месяц': 28,
     'последние полгода': 183,
-    'всё время': 5110,
+    'всё время': 10110,
 }
 WCLOUD_MIN_WORD_LEN: str = 4
 WCLOUD_OUTPUT_WORDS_AMOUNT: str = 7
